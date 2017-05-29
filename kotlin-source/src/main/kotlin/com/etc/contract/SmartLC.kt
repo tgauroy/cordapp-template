@@ -7,7 +7,8 @@ import java.security.PublicKey
 import java.time.Instant
 import java.util.*
 import com.etc.contract.status.*
-import net.corda.core.contracts.Requirements.using
+import net.corda.core.crypto.Party
+import net.corda.core.transactions.TransactionBuilder
 
 
 open class SmartLC : Contract {
@@ -63,13 +64,15 @@ open class SmartLC : Contract {
 
             override val owner: PublicKey,
 
-            val ETCReferenceID: String? = null,
             var applicant: PartyAndReference? = null,
             val beneficiary: PartyAndReference? = null,
 
             val issuingBank: PartyAndReference? = null,
             val advisingBank: PartyAndReference? = null,
             val negotiatingBank: PartyAndReference? = null,
+
+            val ETCReferenceID: String? = null,
+
 
             var issuingBankValidated: Boolean? = false,
             var advisingBankValidated: Boolean? = false,
@@ -130,7 +133,34 @@ open class SmartLC : Contract {
         override val participants = listOf(owner)
 
         fun withoutOwner() = copy(owner = NullPublicKey)
+        fun withOwner(newOwner: PublicKey) : ContractState =  copy(owner = newOwner)
+        fun approveFor(approver: PartyAndReference): ContractState {
+            var statusToPromoted = SmartLCStatus.DRAFT_APPROUVED
 
+            if (approver == issuingBank) {
+                statusToPromoted = SmartLCStatus.ISSUED
+                return copy(status = statusToPromoted, issuingBankValidated = true)
+            }
+
+            if (approver == advisingBank && issuingBankValidated as Boolean) {
+                statusToPromoted = SmartLCStatus.ISSUANCE_ACCEPTED
+                return copy(status = statusToPromoted, advisingBankValidated = true)
+            }
+            return copy(status = statusToPromoted)
+        }
+
+    }
+
+    fun generateCreate(owner : PublicKey, beneficiary : PartyAndReference, issuingBank : PartyAndReference, advisingBank : PartyAndReference, applicant : PartyAndReference,notary: Party ): TransactionBuilder {
+        val state = State(owner,beneficiary,issuingBank,advisingBank,applicant)
+        return TransactionBuilder(notary = notary).withItems(state, Command(Commands.Approve(), beneficiary.party.owningKey))
+    }
+
+    fun generateApprove(tx: TransactionBuilder, smartlc: StateAndRef<State>, newOwner: PublicKey, approver: PartyAndReference) {
+        tx.addInputState(smartlc)
+        tx.addOutputState(smartlc.state.data.withOwner(newOwner))
+        tx.addOutputState(smartlc.state.data.approveFor(approver))
+        tx.addCommand(Command(Commands.Move(), smartlc.state.data.owner))
     }
 }
 
