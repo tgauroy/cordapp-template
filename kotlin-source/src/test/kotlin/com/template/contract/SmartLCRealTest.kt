@@ -1,8 +1,6 @@
 package com.template.contract
 
-import com.etc.contract.SmartLC
-import com.etc.contract.`approved by`
-import com.etc.contract.`with new owner`
+import com.etc.contract.*
 import com.etc.contract.status.SmartLCStatus
 
 import net.corda.core.crypto.Crypto
@@ -92,10 +90,11 @@ class SmartLCRealTest {
 
     @Test
     fun the_issuingBank_validate_the_transaction() {
-        val inState = getDefaultSmartLC()
+        var inState = getDefaultSmartLC()
+        inState = inState.`with new owner`(issuingBankKeyPair.public) as SmartLC.State
         ledger {
-            transaction("Validate Trader Deal by Issuing Bank") {
-                input(inState.`approved by`(issuingBank))
+            transaction {
+                input(inState `approved by` (issuingBank))
                 command(issuingBankKeyPair.public) { SmartLC.Commands.Approve() }
                 this.verifies()
             }
@@ -104,24 +103,25 @@ class SmartLCRealTest {
 
     @Test
     fun the_advisingBank_cannot_validate_the_transaction_directly() {
-        val inState = getDefaultSmartLC()
+        var inState = getDefaultSmartLC()
+        inState = inState.`with new owner`(advisingBankKeyPair.public) as SmartLC.State
         ledger {
-            transaction("Validate Trader Deal by Issuing Bank") {
+            transaction {
                 input(inState.`approved by`(advisingBank))
-                command(issuingBankKeyPair.public) { SmartLC.Commands.Approve() }
-                this `fails with` "the transaction should have status ISSUED OR ISSUANCE_ACCEPTED"
+                command(advisingBankKeyPair.public) { SmartLC.Commands.Approve() }
+                this `fails with` "the transaction cannot be approved"
             }
         }
     }
 
 //    @Test
 //    fun the_advisingBank_can_validate_the_transaction_only_after_issuingBank() {
-//        val inState = getDefaultSmartLC()
+//        var inState = getDefaultSmartLC()
 //        ledger {
-//            transaction("Validate Trader Deal by Issuing Bank") {
-//                input(inState.`approved by`(issuingBank))
-//                command(issuingBankKeyPair.public) { SmartLC.Commands.Approve() }
-//                output(inState.`approved by`(advisingBank))
+//            transaction {
+//                input("Validated By IssuingBank")
+//                command(advisingBankKeyPair.public) { SmartLC.Commands.Approve() }
+//                output("Advising Bank validation") { inState.`approved by`(advisingBank) }
 //                this.verifies()
 //            }
 //        }

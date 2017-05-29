@@ -7,6 +7,7 @@ import java.security.PublicKey
 import java.time.Instant
 import java.util.*
 import com.etc.contract.status.*
+import net.corda.core.contracts.Requirements.using
 
 
 open class SmartLC : Contract {
@@ -49,7 +50,8 @@ open class SmartLC : Contract {
                 is Commands.Approve -> {
                     val input = inputs.single()
                     requireThat {
-                        "the transaction should have status ISSUED OR ISSUANCE_ACCEPTED" using (SmartLCStatus.ISSUED == input.status || SmartLCStatus.ISSUANCE_ACCEPTED == input.status)
+                        "the transaction cannot be approved" using ((SmartLCStatus.ISSUED == input.status || SmartLCStatus.ISSUANCE_ACCEPTED == input.status)
+                                && (command.signers.single() == input.owner))
                     }
                 }
                 else -> throw IllegalArgumentException("Unrecognised command")
@@ -149,9 +151,23 @@ fun SmartLC.State.approveSmartLc(approver: PartyAndReference): ContractState {
     return copy(status = statusToPromoted)
 }
 
+fun SmartLC.State.getApprovalSate(approver: PartyAndReference): Boolean {
+    if (approver == issuingBank) {
+        return issuingBankValidated as Boolean
+    } else if (approver == advisingBank) {
+        return advisingBankValidated as Boolean
+    }
+    return false
+}
+
 
 infix fun SmartLC.State.`approved by`(approbator: PartyAndReference): ContractState = approveSmartLc(approbator)
 infix fun SmartLC.State.`with new owner`(newowner: PublicKey): ContractState = changeOwner(newowner)
+
+infix fun SmartLC.State.`is approved by`(approbator: PartyAndReference): Boolean = getApprovalSate(approbator)
+
+
+
 
 
 
