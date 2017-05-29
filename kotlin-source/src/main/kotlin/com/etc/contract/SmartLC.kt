@@ -7,7 +7,6 @@ import java.security.PublicKey
 import java.time.Instant
 import java.util.*
 import com.etc.contract.status.*
-import net.corda.core.transactions.TransactionBuilder
 
 
 open class SmartLC : Contract {
@@ -15,6 +14,7 @@ open class SmartLC : Contract {
     interface Commands : CommandData {
         class Create : TypeOnlyCommandData(), Commands
         class Approve : TypeOnlyCommandData(), Commands
+        class Move : TypeOnlyCommandData(), Commands
     }
 
     override val legalContractReference: SecureHash
@@ -31,35 +31,37 @@ open class SmartLC : Contract {
         for ((inputs, outputs, key) in groups) {
             when (command.value) {
 
+                is Commands.Move -> {
+                    val input = inputs.single()
+                    requireThat {
+                        "the state is propagated" using (outputs.size == 1)
+                    }
+                }
+
                 is Commands.Create -> {
                     val input = inputs.single()
                     requireThat {
-                        "the transaction is created with status DRAFT" using (SmartLCStatus.DRAFT_APPROUVED == input.status)
-                        "only a trader can create a new contract" using (input.applicant == input.beneficiary)
+                        "the transaction is created only with status DRAFT" using (SmartLCStatus.DRAFT_APPROUVED == input.status)
+                        "the transaction is created by beneficiary" using (command.signers.single() == input.owner)
                     }
                 }
 
                 is Commands.Approve -> {
                     val input = inputs.single()
                     requireThat {
-                        "the transaction is approved with status ISSUED" using (input.applicant == input.issuingBank)
-                        "the transaction is approved with status ISSUANCE ACCEPTED" using (input.applicant == input.advisingBank)
-
+                        "the transaction should have status ISSUED OR ISSUANCE_ACCEPTED" using (SmartLCStatus.ISSUED == input.status || SmartLCStatus.ISSUANCE_ACCEPTED == input.status)
                     }
                 }
-
-
                 else -> throw IllegalArgumentException("Unrecognised command")
             }
         }
     }
 
     data class State(
-            val issuance: PartyAndReference,
+
             override val owner: PublicKey,
 
             val ETCReferenceID: String? = null,
-
             var applicant: PartyAndReference? = null,
             val beneficiary: PartyAndReference? = null,
 
@@ -67,8 +69,8 @@ open class SmartLC : Contract {
             val advisingBank: PartyAndReference? = null,
             val negotiatingBank: PartyAndReference? = null,
 
-            var issuingBankValidation: Boolean? = false,
-            var advisingBankValidation: Boolean? = false,
+            var issuingBankValidated: Boolean? = false,
+            var advisingBankValidated: Boolean? = false,
 
 
             val priceFixed: Amount<Issued<Currency>>? = null,
@@ -119,26 +121,38 @@ open class SmartLC : Contract {
 
 
     ) : OwnableState {
-        override fun withNewOwner(newOwner: PublicKey): Pair<CommandData, OwnableState> {
-            TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-        }
+
+        override fun withNewOwner(newOwner: PublicKey) = Pair(SmartLC.Commands.Move(), copy(owner = newOwner))
 
         override val contract = SmartLC()
         override val participants = listOf(owner)
 
         fun withoutOwner() = copy(owner = NullPublicKey)
 
-        fun approveContract(tx : TransactionBuilder, contract: StateAndRef<State>, approver: PublicKey) {
-            tx.addInputState(contract)
-            tx.addOutputState(TransactionState(contract.state.data.copy(owner = approver), contract.state.notary))
-            tx.addOutputState(TransactionState(contract.state.data.apply {status = SmartLCStatus.ISSUED }, contract.state.notary))
-            tx.addCommand(Commands.Approve())
-        }
+    }
+}
 
+fun SmartLC.State.changeOwner(newOwner: PublicKey): ContractState = copy(owner = newOwner)
+
+fun SmartLC.State.approveSmartLc(approver: PartyAndReference): ContractState {
+    var statusToPromoted = SmartLCStatus.DRAFT_APPROUVED
+
+    if (approver == issuingBank) {
+        statusToPromoted = SmartLCStatus.ISSUED
+        return copy(status = statusToPromoted, issuingBankValidated = true)
     }
 
-
+    if (approver == advisingBank && issuingBankValidated as Boolean) {
+        statusToPromoted = SmartLCStatus.ISSUANCE_ACCEPTED
+        return copy(status = statusToPromoted, advisingBankValidated = true)
+    }
+    return copy(status = statusToPromoted)
 }
+
+
+infix fun SmartLC.State.`approved by`(approbator: PartyAndReference): ContractState = approveSmartLc(approbator)
+infix fun SmartLC.State.`with new owner`(newowner: PublicKey): ContractState = changeOwner(newowner)
+
 
 
 

@@ -1,14 +1,12 @@
 package com.template.contract
 
 import com.etc.contract.SmartLC
+import com.etc.contract.`approved by`
+import com.etc.contract.`with new owner`
 import com.etc.contract.status.SmartLCStatus
-import net.corda.core.contracts.DOLLARS
 
-import net.corda.core.contracts.`issued by`
 import net.corda.core.crypto.Crypto
 import net.corda.core.crypto.Party
-import net.corda.core.days
-import net.corda.core.utilities.TEST_TX_TIME
 import net.corda.testing.ledger
 import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.asn1.x500.X500NameBuilder
@@ -19,14 +17,18 @@ import java.security.KeyPair
 
 class SmartLCRealTest {
 
-    val currentKEyPairMyCorp = generateKeyPair()
-    val currentKEyPairMyNewOwner = generateKeyPair()
+    val beneficiaryKeyPair = generateKeyPair()
+    val issuingBankKeyPair = generateKeyPair()
+    val advisingBankKeyPair = generateKeyPair()
+    val applicantKeyPair = generateKeyPair()
+    val otherplayerwedontcareKeyPair = generateKeyPair()
 
-    val IssuingBank = Party("IssuingBank", currentKEyPairMyNewOwner.public).ref(1)
-    val advisingBank = Party("advisingBank", currentKEyPairMyNewOwner.public).ref(2)
-    val applicant = Party("applicant", currentKEyPairMyNewOwner.public).ref(3)
-    val beneficiary = Party("beneficiary", currentKEyPairMyNewOwner.public).ref(4)
-    val otherplayerwedontcare = Party("osef", currentKEyPairMyNewOwner.public).ref(4)
+
+    val beneficiary = Party("beneficiary", beneficiaryKeyPair.public).ref(4)
+    val issuingBank = Party("issuingBank", issuingBankKeyPair.public).ref(1)
+    val advisingBank = Party("advisingBank", advisingBankKeyPair.public).ref(2)
+    val applicant = Party("applicant", applicantKeyPair.public).ref(3)
+    val otherplayerwedontcare = Party("osef", otherplayerwedontcareKeyPair.public).ref(4)
 
     fun generateKeyPair(): KeyPair = Crypto.generateKeyPair()
 
@@ -42,62 +44,88 @@ class SmartLCRealTest {
     }
 
     fun getDefaultSmartLC(): SmartLC.State = SmartLC.State(
-            issuance = beneficiary,
-            owner = currentKEyPairMyCorp.public
+            owner = beneficiaryKeyPair.public,
+            beneficiary = beneficiary,
+            issuingBank = issuingBank,
+            advisingBank = advisingBank,
+            applicant = applicant
     )
 
 
     @Test
-    fun when_smartlc_is_created_first_status_is_draft_saved() {
+    fun smartlc_is_created_first_status_is_draft_saved() {
         val inState = getDefaultSmartLC()
 
         ledger {
             transaction {
                 input(inState)
-                command(currentKEyPairMyCorp.public) { SmartLC.Commands.Create() }
+                command(beneficiaryKeyPair.public) { SmartLC.Commands.Create() }
                 this.verifies()
             }
         }
     }
 
     @Test
-    fun when_smartlc_is_created_first_status_should_failed_if_not_draft_saved() {
+    fun smatlc_can_only_be_created_by_beneficiary() {
+        val inState = getDefaultSmartLC()
+        ledger {
+            transaction {
+                input(inState `with new owner` otherplayerwedontcareKeyPair.public)
+                command(beneficiaryKeyPair.public) { SmartLC.Commands.Create() }
+                this `fails with` "the transaction is created by beneficiary"
+            }
+        }
+    }
+
+    @Test
+    fun smartlc_is_created_first_status_should_failed_if_not_draft_saved() {
         val inState = getDefaultSmartLC()
         inState.status = SmartLCStatus.ISSUED
         ledger {
             transaction {
                 input(inState)
-                command(currentKEyPairMyCorp.public) { SmartLC.Commands.Create() }
-                this `fails with` "the transaction is created with status DRAFT"
+                command(beneficiaryKeyPair.public) { SmartLC.Commands.Create() }
+                this `fails with` "the transaction is created only with status DRAFT"
             }
         }
     }
 
     @Test
-    fun only_trader_can_create_a_contract() {
+    fun the_issuingBank_validate_the_transaction() {
         val inState = getDefaultSmartLC()
-        inState.applicant = otherplayerwedontcare
         ledger {
-            transaction {
-                input(inState)
-                command(currentKEyPairMyCorp.public) { SmartLC.Commands.Create() }
-                this `fails with` "only a trader can create a new contract"
+            transaction("Validate Trader Deal by Issuing Bank") {
+                input(inState.`approved by`(issuingBank))
+                command(issuingBankKeyPair.public) { SmartLC.Commands.Approve() }
+                this.verifies()
             }
         }
     }
 
     @Test
-    fun simulate_issuing_bank_validation() {
+    fun the_advisingBank_cannot_validate_the_transaction_directly() {
         val inState = getDefaultSmartLC()
         ledger {
-            transaction {
-                input(inState)
-                output("paper") { getDefaultSmartLC().approveContract() } // Some CP is issued onto the ledger by MegaCorp.
-                command(currentKEyPairMyCorp.public) { SmartLC.Commands.Approve() }
-                this `fails with` "output values sum to more than the inputs"
+            transaction("Validate Trader Deal by Issuing Bank") {
+                input(inState.`approved by`(advisingBank))
+                command(issuingBankKeyPair.public) { SmartLC.Commands.Approve() }
+                this `fails with` "the transaction should have status ISSUED OR ISSUANCE_ACCEPTED"
             }
         }
     }
+
+//    @Test
+//    fun the_advisingBank_can_validate_the_transaction_only_after_issuingBank() {
+//        val inState = getDefaultSmartLC()
+//        ledger {
+//            transaction("Validate Trader Deal by Issuing Bank") {
+//                input(inState.`approved by`(issuingBank))
+//                command(issuingBankKeyPair.public) { SmartLC.Commands.Approve() }
+//                output(inState.`approved by`(advisingBank))
+//                this.verifies()
+//            }
+//        }
+//    }
 
 
 }
