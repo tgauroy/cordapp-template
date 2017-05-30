@@ -23,12 +23,11 @@ class SmartLCRealTest {
     val otherplayerwedontcareKeyPair = generateKeyPair()
 
 
-
-    val beneficiary = Party("beneficiary", beneficiaryKeyPair.public).ref(4)
-    val issuingBank = Party("issuingBank", issuingBankKeyPair.public).ref(1)
-    val advisingBank = Party("advisingBank", advisingBankKeyPair.public).ref(2)
-    val applicant = Party("applicant", applicantKeyPair.public).ref(3)
-    val otherplayerwedontcare = Party("osef", otherplayerwedontcareKeyPair.public).ref(4)
+    val beneficiary = Party("beneficiary", beneficiaryKeyPair.public)
+    val issuingBank = Party("issuingBank", issuingBankKeyPair.public)
+    val advisingBank = Party("advisingBank", advisingBankKeyPair.public)
+    val applicant = Party("applicant", applicantKeyPair.public)
+    val otherplayerwedontcare = Party("osef", otherplayerwedontcareKeyPair.public)
 
 
     fun generateKeyPair(): KeyPair = Crypto.generateKeyPair()
@@ -117,25 +116,25 @@ class SmartLCRealTest {
         }
     }
 
-   @Test
-   fun the_advisingBank_can_validate_the_transaction_only_after_issuingBank() {
-       var inState = getDefaultSmartLC()
-       inState = inState.`with new owner`(advisingBankKeyPair.public) as SmartLC.State
-       inState = inState.`approved by`(issuingBank)as SmartLC.State
-       ledger {
-           transaction {
-               input(inState.`approved by`(advisingBank))
-               command(advisingBankKeyPair.public) { SmartLC.Commands.Approve() }
-               this.verifies()
-           }
-       }
-   }
+    @Test
+    fun the_advisingBank_can_validate_the_transaction_only_after_issuingBank() {
+        var inState = getDefaultSmartLC()
+        inState = inState.`with new owner`(advisingBankKeyPair.public) as SmartLC.State
+        inState = inState.`approved by`(issuingBank) as SmartLC.State
+        ledger {
+            transaction {
+                input(inState.`approved by`(advisingBank))
+                command(advisingBankKeyPair.public) { SmartLC.Commands.Approve() }
+                this.verifies()
+            }
+        }
+    }
 
     @Test
-    fun test_howwork_api(){
+    fun test_howwork_api() {
         var inState = SmartLC()
-        ledger{
-            inState.generateCreate(beneficiaryKeyPair.public,beneficiary,issuingBank,advisingBank,applicant,DUMMY_NOTARY)
+        ledger {
+            inState.generateCreate(beneficiaryKeyPair.public, beneficiary, issuingBank, advisingBank, applicant, DUMMY_NOTARY)
             this.verifies()
         }
     }

@@ -64,12 +64,12 @@ open class SmartLC : Contract {
 
             override val owner: PublicKey,
 
-            var applicant: PartyAndReference? = null,
-            val beneficiary: PartyAndReference? = null,
+            var applicant: Party? = null,
+            val beneficiary: Party? = null,
 
-            val issuingBank: PartyAndReference? = null,
-            val advisingBank: PartyAndReference? = null,
-            val negotiatingBank: PartyAndReference? = null,
+            val issuingBank: Party? = null,
+            val advisingBank: Party? = null,
+            val negotiatingBank: Party? = null,
 
             val ETCReferenceID: String? = null,
 
@@ -133,8 +133,8 @@ open class SmartLC : Contract {
         override val participants = listOf(owner)
 
         fun withoutOwner() = copy(owner = NullPublicKey)
-        fun withOwner(newOwner: PublicKey) : ContractState =  copy(owner = newOwner)
-        fun approveFor(approver: PartyAndReference): ContractState {
+        fun withOwner(newOwner: PublicKey): ContractState = copy(owner = newOwner)
+        fun approveFor(approver: Party): ContractState {
             var statusToPromoted = SmartLCStatus.DRAFT_APPROUVED
 
             if (approver == issuingBank) {
@@ -151,12 +151,12 @@ open class SmartLC : Contract {
 
     }
 
-    fun generateCreate(owner : PublicKey, beneficiary : PartyAndReference, issuingBank : PartyAndReference, advisingBank : PartyAndReference, applicant : PartyAndReference,notary: Party ): TransactionBuilder {
-        val state = State(owner,beneficiary,issuingBank,advisingBank,applicant)
-        return TransactionBuilder(notary = notary).withItems(state, Command(Commands.Approve(), beneficiary.party.owningKey))
+    fun generateCreate(owner: PublicKey, beneficiary: Party, issuingBank: Party, advisingBank: Party, applicant: Party, notary: Party): TransactionBuilder {
+        val state = State(owner, beneficiary, issuingBank, advisingBank, applicant)
+        return TransactionBuilder(notary = notary).withItems(state, Command(Commands.Approve(), beneficiary.owningKey))
     }
 
-    fun generateApprove(tx: TransactionBuilder, smartlc: StateAndRef<State>, newOwner: PublicKey, approver: PartyAndReference) {
+    fun generateApprove(tx: TransactionBuilder, smartlc: StateAndRef<State>, newOwner: PublicKey, approver: Party) {
         tx.addInputState(smartlc)
         tx.addOutputState(smartlc.state.data.withOwner(newOwner))
         tx.addOutputState(smartlc.state.data.approveFor(approver))
@@ -166,7 +166,7 @@ open class SmartLC : Contract {
 
 fun SmartLC.State.changeOwner(newOwner: PublicKey): ContractState = copy(owner = newOwner)
 
-fun SmartLC.State.approveSmartLc(approver: PartyAndReference): ContractState {
+fun SmartLC.State.approveSmartLc(approver: Party): ContractState {
     var statusToPromoted = SmartLCStatus.DRAFT_APPROUVED
 
     if (approver == issuingBank) {
@@ -181,7 +181,7 @@ fun SmartLC.State.approveSmartLc(approver: PartyAndReference): ContractState {
     return copy(status = statusToPromoted)
 }
 
-fun SmartLC.State.getApprovalSate(approver: PartyAndReference): Boolean {
+fun SmartLC.State.getApprovalSate(approver: Party): Boolean {
     if (approver == issuingBank) {
         return issuingBankValidated as Boolean
     } else if (approver == advisingBank) {
@@ -191,10 +191,10 @@ fun SmartLC.State.getApprovalSate(approver: PartyAndReference): Boolean {
 }
 
 
-infix fun SmartLC.State.`approved by`(approbator: PartyAndReference): ContractState = approveSmartLc(approbator)
+infix fun SmartLC.State.`approved by`(approbator: Party): ContractState = approveSmartLc(approbator)
 infix fun SmartLC.State.`with new owner`(newowner: PublicKey): ContractState = changeOwner(newowner)
 
-infix fun SmartLC.State.`is approved by`(approbator: PartyAndReference): Boolean = getApprovalSate(approbator)
+infix fun SmartLC.State.`is approved by`(approbator: Party): Boolean = getApprovalSate(approbator)
 
 
 
