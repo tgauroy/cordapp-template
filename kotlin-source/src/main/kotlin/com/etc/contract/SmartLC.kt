@@ -34,25 +34,25 @@ open class SmartLC : Contract {
             when (command.value) {
 
                 is Commands.Move -> {
-                    val input = inputs.single()
+                    val output = outputs.single()
                     requireThat {
                         "the state is propagated" using (outputs.size == 1)
                     }
                 }
 
                 is Commands.Create -> {
-                    val input = inputs.single()
+                    val output = outputs.single()
                     requireThat {
-                        "the transaction is created only with status DRAFT" using (SmartLCStatus.DRAFT_APPROUVED == input.status)
-                        "the transaction is created by beneficiary" using (command.signers.single() == input.owner)
+                        "the transaction is created only with status DRAFT" using (SmartLCStatus.DRAFT_APPROUVED == output.status)
+                        "the transaction is created by beneficiary" using (command.signers.single() == output.owner)
                     }
                 }
 
                 is Commands.Approve -> {
-                    val input = inputs.single()
+                    val output = outputs.single()
                     requireThat {
-                        "the transaction cannot be approved" using ((SmartLCStatus.ISSUED == input.status || SmartLCStatus.ISSUANCE_ACCEPTED == input.status)
-                                && (command.signers.single() == input.owner))
+                        "the transaction cannot be approved" using ((SmartLCStatus.ISSUED == output.status || SmartLCStatus.ISSUANCE_ACCEPTED == output.status)
+                                && (command.signers.single() == output.owner))
                     }
                 }
                 else -> throw IllegalArgumentException("Unrecognised command")

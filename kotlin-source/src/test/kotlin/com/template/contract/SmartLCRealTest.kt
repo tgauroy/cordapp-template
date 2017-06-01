@@ -69,7 +69,7 @@ open class SmartLCRealTest {
 
         ledger {
             transaction {
-                input(inState)
+                output(inState)
                 command(beneficiaryKeyPair.public) { SmartLC.Commands.Create() }
                 this.verifies()
             }
@@ -81,7 +81,7 @@ open class SmartLCRealTest {
         val inState = getDefaultSmartLC()
         ledger {
             transaction {
-                input(inState `with new owner` otherplayerwedontcareKeyPair.public)
+                output(inState `with new owner` otherplayerwedontcareKeyPair.public)
                 command(beneficiaryKeyPair.public) { SmartLC.Commands.Create() }
                 this `fails with` "the transaction is created by beneficiary"
             }
@@ -94,7 +94,7 @@ open class SmartLCRealTest {
         inState.status = SmartLCStatus.ISSUED
         ledger {
             transaction {
-                input(inState)
+                output(inState)
                 command(beneficiaryKeyPair.public) { SmartLC.Commands.Create() }
                 this `fails with` "the transaction is created only with status DRAFT"
             }
@@ -107,7 +107,7 @@ open class SmartLCRealTest {
         inState = inState.`with new owner`(issuingBankKeyPair.public) as SmartLC.State
         ledger {
             transaction {
-                input(inState `approved by` (issuingBank))
+                output(inState `approved by` (issuingBank))
                 command(issuingBankKeyPair.public) { SmartLC.Commands.Approve() }
                 this.verifies()
             }
@@ -120,7 +120,7 @@ open class SmartLCRealTest {
         inState = inState.`with new owner`(advisingBankKeyPair.public) as SmartLC.State
         ledger {
             transaction {
-                input(inState.`approved by`(advisingBank))
+                output(inState.`approved by`(advisingBank))
                 command(advisingBankKeyPair.public) { SmartLC.Commands.Approve() }
                 this `fails with` "the transaction cannot be approved"
             }
@@ -134,7 +134,7 @@ open class SmartLCRealTest {
         inState = inState.`approved by`(issuingBank) as SmartLC.State
         ledger {
             transaction {
-                input(inState.`approved by`(advisingBank))
+                output(inState.`approved by`(advisingBank))
                 command(advisingBankKeyPair.public) { SmartLC.Commands.Approve() }
                 this.verifies()
             }
@@ -163,7 +163,7 @@ open class SmartLCRealTest {
         }
 
         @Test
-        fun `resolve from two hashes`() {
+        fun `flow to create a smart lc by beneficiary`() {
             val stx1 = makeTransactions()
             val p = ResolveTransactionsFlow(setOf(stx1.id), a.info.legalIdentity)
             val future = b.services.startFlow(p).resultFuture
