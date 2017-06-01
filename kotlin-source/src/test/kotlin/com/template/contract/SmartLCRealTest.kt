@@ -2,19 +2,30 @@ package com.template.contract
 
 import com.etc.contract.*
 import com.etc.contract.status.SmartLCStatus
+import junit.framework.Assert.assertEquals
 import net.corda.core.utilities.DUMMY_NOTARY
 import net.corda.core.crypto.Crypto
 import net.corda.core.crypto.Party
-import net.corda.core.transactions.TransactionBuilder
+import net.corda.core.crypto.SecureHash
+import net.corda.core.getOrThrow
+import net.corda.core.transactions.SignedTransaction
+import net.corda.core.utilities.DUMMY_NOTARY_KEY
+import net.corda.core.utilities.DUMMY_PUBKEY_1
+import net.corda.node.utilities.transaction
 import net.corda.testing.ledger
+import net.corda.testing.node.MockNetwork
 import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.asn1.x500.X500NameBuilder
 import org.bouncycastle.asn1.x500.style.BCStyle
+import net.corda.flows.ResolveTransactionsFlow
+import net.corda.testing.MEGA_CORP_KEY
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import java.security.KeyPair
 
 
-class SmartLCRealTest {
+open class SmartLCRealTest {
 
     val beneficiaryKeyPair = generateKeyPair()
     val issuingBankKeyPair = generateKeyPair()
@@ -130,14 +141,63 @@ class SmartLCRealTest {
         }
     }
 
-    @Test
-    fun test_howwork_api() {
-        var inState = SmartLC()
-        ledger {
-            inState.generateCreate(beneficiaryKeyPair.public, beneficiary, issuingBank, advisingBank, applicant, DUMMY_NOTARY)
-            this.verifies()
+    class CreateSmartOverFlowTest : SmartLCRealTest() {
+
+        lateinit var net: MockNetwork
+        lateinit var a: MockNetwork.MockNode
+        lateinit var b: MockNetwork.MockNode
+        lateinit var c: MockNetwork.MockNode
+        lateinit var d: MockNetwork.MockNode
+        lateinit var notary: Party
+
+        @Before
+        fun setup() {
+            net = MockNetwork()
+            val nodes = net.createSomeNodes(4)
+            a = nodes.partyNodes[0]
+            b = nodes.partyNodes[1]
+            c = nodes.partyNodes[2]
+            d = nodes.partyNodes[3]
+            notary = nodes.notaryNode.info.notaryIdentity
+            net.runNetwork()
+        }
+
+        @Test
+        fun `resolve from two hashes`() {
+            val stx1 = makeTransactions()
+            val p = ResolveTransactionsFlow(setOf(stx1.id), a.info.legalIdentity)
+            val future = b.services.startFlow(p).resultFuture
+            net.runNetwork()
+            val results = future.getOrThrow()
+            assertEquals(listOf(stx1.id), results.map { it.id })
+            b.database.transaction {
+                assertEquals(stx1, b.storage.validatedTransactions.getTransaction(stx1.id))
+            }
+        }
+
+        private fun makeTransactions(signFirstTX: Boolean = true, withAttachment: SecureHash? = null): SignedTransaction {
+
+            // Make a chain of custody of dummy states and insert into node A.
+            val createTx: SignedTransaction = SmartLC().generateCreate(a.info.legalIdentity.owningKey, a.info.legalIdentity, b.info.legalIdentity, c.info.legalIdentity, d.info.legalIdentity, DUMMY_NOTARY).let {
+                if (withAttachment != null)
+                    it.addAttachment(withAttachment)
+                if (signFirstTX)
+                    it.signWith(a.keyManagement.toKeyPair(a.info.legalIdentity.owningKey))
+                it.signWith(DUMMY_NOTARY_KEY)
+                it.toSignedTransaction(false)
+            }
+
+            a.database.transaction {
+                a.services.recordTransactions(createTx)
+            }
+
+            return createTx
+        }
+
+        @After
+        fun tearDown() {
+            net.stopNodes()
         }
     }
-
 
 }

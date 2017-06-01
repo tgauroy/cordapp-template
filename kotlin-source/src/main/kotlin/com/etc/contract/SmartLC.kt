@@ -153,14 +153,14 @@ open class SmartLC : Contract {
 
     fun generateCreate(owner: PublicKey, beneficiary: Party, issuingBank: Party, advisingBank: Party, applicant: Party, notary: Party): TransactionBuilder {
         val state = State(owner, beneficiary, issuingBank, advisingBank, applicant)
-        return TransactionBuilder(notary = notary).withItems(state, Command(Commands.Approve(), beneficiary.owningKey))
+        return TransactionBuilder(notary = notary).withItems(state, Command(Commands.Create(), beneficiary.owningKey))
     }
 
     fun generateApprove(tx: TransactionBuilder, smartlc: StateAndRef<State>, newOwner: PublicKey, approver: Party) {
         tx.addInputState(smartlc)
         tx.addOutputState(smartlc.state.data.withOwner(newOwner))
         tx.addOutputState(smartlc.state.data.approveFor(approver))
-        tx.addCommand(Command(Commands.Move(), smartlc.state.data.owner))
+        tx.addCommand(Command(Commands.Approve(), smartlc.state.data.owner))
     }
 }
 

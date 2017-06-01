@@ -27,6 +27,7 @@ class CreateSmartLcFlow(val owner: PublicKey,
                 notary: Party) :
             this(owner, beneficiary, issuingBank, advisingBank, applicant, notary, tracker())
 
+
     @Suspendable
     override fun call(): SignedTransaction {
         progressTracker.currentStep = GENERATING_TX
